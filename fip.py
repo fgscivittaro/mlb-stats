@@ -12,12 +12,17 @@ def calculate_fip(name, year):
     player_url = ('http://www.espn.com/mlb/players?search={}&alltime=true&statusId=1'
     .format(name))
 
-    soup = get_stats_soup(player_url)
+    try:
+        soup = get_stats_soup(player_url)
+    except AttributeError:
+        return "No stats could be found for this player"
+    except:
+        raise
+
     stats = get_stats(soup, year)
 
     if stats:
         FIP = calculate_pure_fip(stats, year) + calculate_fip_constant(year)
-        print year + ": " + ('%.2f' % FIP)
         return ('%.2f' % FIP)
     else:
         return "No stats found for the given name and/or year"
