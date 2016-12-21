@@ -3,22 +3,6 @@ from requests.packages.urllib3.util.retry import Retry
 from requests.adapters import HTTPAdapter
 from bs4 import BeautifulSoup
 
-def convert_name_to_soup(name):
-    """
-    Takes a player's name and returns the soup for that player's stats page.
-    """
-
-    player_url = ('http://www.espn.com/mlb/players?search={}&alltime=true&statusId=1'
-    .format(name))
-
-    try:
-        return get_stats_soup(player_url)
-    except AttributeError:
-        return None
-    except:
-        raise
-
-
 def get_soup(url):
     """
     Takes in a url and returns the parsed BeautifulSoup code for that url with
@@ -49,6 +33,22 @@ def get_stats_soup(url):
     stats_url = 'http://www.espn.com' + back_half
 
     return get_soup(stats_url)
+
+
+def convert_name_to_soup(name):
+    """
+    Takes a player's name and returns the soup for that player's stats page.
+    """
+
+    player_url = ('http://www.espn.com/mlb/players?search={}&alltime=true&statusId=1'
+    .format(name))
+
+    try:
+        return get_stats_soup(player_url)
+    except AttributeError:
+        return None
+    except:
+        raise
 
 
 def get_stats(soup, year):
@@ -148,16 +148,22 @@ def calculate_pure_xfip(stats, year):
     Calculates xFIP before adjusting by the FIP constant.
     """
 
-    
+    league_averages = get_league_averages(year)
 
-    return []
+    lgHRFB = float(league_averages['HR']) / float(league_averages['FB'])
+    FB = float(stats['FB'])
+    BB = float(stats['BB'])
+    HBP = float(stats['HBP'])
+    K = float(stats['SO'])
+    IP = float(stats['IP'])
+
+    return ((13 * (FB * lgHRFB)) + (3 * (BB + HBP)) - (2 * K)) / (IP)
 
 
-def calculate_fip_constant(year):
+def get_league_averages(year):
     """
-    Calculates the FIP constant. The actual value will differ slightly from
-    this calculated value because the actual value assigns different weightings
-    based on the run environment of a given year.
+    Returns a dictionary containing the league averages for various statistics
+    for the desired year.
     """
 
     pitching_url = ('http://www.espn.com/mlb/stats/team/_/stat/pitching/year/{}'
@@ -166,6 +172,10 @@ def calculate_fip_constant(year):
                    .format(year))
     exp_batting_url = (
     'http://www.espn.com/mlb/stats/team/_/stat/batting/year/{}/type/expanded'
+    .format(year))
+
+    exp_batting_ii_url = (
+    'http://www.espn.com/mlb/stats/team/_/stat/batting/year/{}/type/expanded-2'
     .format(year))
 
     def get_averages(url):
@@ -197,16 +207,29 @@ def calculate_fip_constant(year):
 
         return stats_dict
 
-    batting_stats = get_averages(batting_url)
-    exp_batting_stats = get_averages(exp_batting_url)
-    batting_dict = dict(batting_stats.items() + exp_batting_stats.items())
-    pitching_dict = get_averages(pitching_url)
+    league_averages = dict(get_averages(batting_url).items() +
+                           get_averages(exp_batting_url).items() +
+                           get_averages(exp_batting_ii_url).items() +
+                           get_averages(pitching_url).items()
+                           )
 
-    lgERA = float(pitching_dict['ERA'])
-    lgHR = float(batting_dict['HR'])
-    lgBB = float(pitching_dict['BB'])
-    lgHBP = float(batting_dict['HBP'])
-    lgK = float(pitching_dict['SO'])
-    lgIP = float(pitching_dict['IP'])
+    return league_averages
+
+
+def calculate_fip_constant(year):
+    """
+    Calculates the FIP constant. The actual value will differ slightly from
+    this calculated value because the actual value assigns different weightings
+    based on the run environment of a given year.
+    """
+
+    league_averages = get_league_averages(year)
+
+    lgERA = float(league_averages['ERA'])
+    lgHR = float(league_averages['HR'])
+    lgBB = float(league_averages['BB'])
+    lgHBP = float(league_averages['HBP'])
+    lgK = float(league_averages['SO'])
+    lgIP = float(league_averages['IP'])
 
     return lgERA - ((13 * lgHR) + (3 * (lgBB + lgHBP)) - (2 * lgK)) / (lgIP)
