@@ -53,18 +53,19 @@ def convert_name_to_soup(name):
 
 def get_stats(soup, year):
     """
-    Scrapes FanGraphs for the necessary basic pitching statistics to calculate
-    FIP, xFIP, and SIERA.
+    Scrapes ESPN.com for a player's statistics for the desired season and
+    returns a dict containing those stats.
     """
 
     tables = soup.find_all('table', attrs = {'class':'tablehead'})
     first_table = tables[0]
     last_table = tables[len(tables) - 1]
+    second_to_last_table = tables[len(tables) - 2]
 
     def get_stats_for_desired_year(table, year):
         """
-        Checks a table for the correct season and returns a list of stats for
-        that season.
+        Checks a player's stats table for the correct season and returns a list
+        of stats for that season.
         """
 
         # Retrieve the table's headers
@@ -122,9 +123,12 @@ def get_stats(soup, year):
         return stats_dict
 
     main_dict = get_stats_for_desired_year(first_table, year)
-    extra_dict = get_stats_for_desired_year(last_table, year)
+    misc_dict = get_stats_for_desired_year(second_to_last_table, year)
+    misc_dict_ii = get_stats_for_desired_year(last_table, year)
 
-    stats_dict = dict(main_dict.items() + extra_dict.items())
+    stats_dict = dict(main_dict.items() +
+                      misc_dict.items() +
+                      misc_dict_ii.items())
 
     return stats_dict
 
@@ -233,3 +237,87 @@ def calculate_fip_constant(year):
     lgIP = float(league_averages['IP'])
 
     return lgERA - ((13 * lgHR) + (3 * (lgBB + lgHBP)) - (2 * lgK)) / (lgIP)
+
+
+def get_fip_constant(year):
+    """
+    Retrieves the FIP constant from a FanGraphs page.
+    """
+
+    weightings = get_weightings(year)
+
+    return float(weightings['cFIP'])
+
+
+def get_weightings(year):
+    """
+    Takes in a year (str) and returns a list containing the necessary WOBA
+    constants for that year.
+    """
+
+    url = 'http://www.fangraphs.com/guts.aspx?type=cn'
+    soup = get_soup(url)
+
+    headers = soup.find('a', text = 'Season').parent.parent
+    correct_weightings = soup.find('td', text = year).parent
+
+    def clean_soup(dirty_soup):
+        """
+        Takes in a soup element and returns a list of desired strings
+        extracted from the soup code.
+        """
+
+        new_list = []
+
+        for item in dirty_soup:
+            new_list.append(item)
+
+        new_list.pop(0)
+        new_list.pop()
+        final_list = []
+
+        for item in new_list:
+            final_list.append(item.get_text())
+
+        return final_list
+
+    header_list = clean_soup(headers)
+    weightings_list = clean_soup(correct_weightings)
+
+    weightings_dict = {}
+
+    for header, weighting in zip(header_list, weightings_list):
+        weightings_dict[header] = weighting
+
+    return weightings_dict
+
+
+def get_woba(stats, weightings):
+    """
+    Takes in a dict of statistics and a dict of WOBA weightings and calculates
+    the batter's WOBA using the WOBA formula.
+    """
+
+    uBB = float(stats['BB']) - float(stats['IBB'])
+    HBP = float(stats['HBP'])
+    extra_bases = float(stats['2B']) + float(stats['3B']) + float(stats['HR'])
+    singles = float(stats['H']) - extra_bases
+    doubles = float(stats['2B'])
+    triples = float(stats['3B'])
+    HR = float(stats['HR'])
+    AB = float(stats['AB'])
+    SF = float(stats['SF'])
+
+    wBB = float(weightings['wBB'])
+    wHBP = float(weightings['wHBP'])
+    w1B = float(weightings['w1B'])
+    w2B = float(weightings['w2B'])
+    w3B = float(weightings['w3B'])
+    wHR = float(weightings['wHR'])
+
+    numerator = ((wBB * uBB) + (wHBP * HBP) + (w1B * singles) +
+                 (w2B * doubles) + (w3B * triples) + (wHR * HR))
+
+    denominator = AB + uBB + SF + HBP
+
+    return numerator / denominator

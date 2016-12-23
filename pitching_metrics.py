@@ -14,7 +14,7 @@ def calculate_fip(name, year):
         return "No stats found for the given player"
 
     if stats:
-        FIP = calculate_pure_fip(stats, year) + calculate_fip_constant(year)
+        FIP = calculate_pure_fip(stats, year) + get_fip_constant(year)
         return ('%.2f' % FIP)
     else:
         return "No stats found for the given year"
@@ -34,14 +34,7 @@ def calculate_xfip(name, year):
         return "No stats found for the given player"
 
     if stats:
-        xFIP = calculate_pure_xfip(stats, year) + calculate_fip_constant(year)
+        xFIP = calculate_pure_xfip(stats, year) + get_fip_constant(year)
         return ('%.2f' % xFIP)
     else:
         return "No stats found for the given year"
-
-
-def calculate_siera(name, year):
-    """
-    """
-
-    return []
